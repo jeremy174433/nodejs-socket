@@ -16,8 +16,8 @@
                 justify-content: center;
                 align-items: center;
                 background: linear-gradient(to right, #4ecdc4, #019898);
-                border-radius: 5px;
-                margin: 15%;
+                border-radius: 12px;
+                margin: 12.5% 15%;
                 position: fixed;
                 top: 0;
                 right: 0;
@@ -33,8 +33,8 @@
                 outline: none;
                 border: none;
             }
-            #connectedUsers {
-                position: fixed;
+            #connectedUsersContainer {
+                position: absolute;
                 top: 0;
                 left: 0;
                 width: 100%;
@@ -51,6 +51,11 @@
                 background: #019898;
                 color: #fff;
                 opacity: 0;
+            }
+            #helloUser:before {
+                content: '\f164';
+                font-family: FontAwesome;
+                padding: 0 10px;
             }
             #container-input {
                 width: 100%;
@@ -77,7 +82,15 @@
                 color: #fff;
                 text-transform: uppercase;
                 cursor: pointer;
+                transition: all .2s ease;
             }
+            #container-input button:hover { box-shadow: 0 0 100px rgba(255, 255, 255, 0.35) inset; }
+            #container-input button:after {
+                content: '\f124';
+                font-family: FontAwesome;
+                padding-left: 10px;
+            }
+            #messageDiv { position: relative; }
             .messageClient {
                 margin-left: 55%;
                 margin-top: 15px;
@@ -86,6 +99,16 @@
                 background: #6699ff;
                 padding: 10px;
                 box-shadow: 0 0 5px #6699ff;
+            }
+            .messageClient:after {
+                content: '\f0da';
+                font-family: FontAwesome;
+                position: absolute;
+                right: 0;
+                margin-right: -10px;
+                margin-top: -17px;
+                color: #6699ff;
+                font-size: 30px;
             }
             .messageServer {
                 margin-right: 55%;
@@ -96,27 +119,43 @@
                 padding: 10px;
                 box-shadow: 0 0 5px #f2f2f2;
             }
+            .messageServer:before {
+                content: '\f0d9';
+                font-family: FontAwesome;
+                position: absolute;
+                left: 0;
+                margin-left: -10px;
+                margin-top: 8px;
+                color: #f2f2f2;
+                font-size: 30px;
+            }
             #messageDiv p { margin: 0 0 7px 0; font-weight: 700; }
         </style>
     </head>
 
     <body>
 
-        <div id="connectedUsersContainer">
-            <div id="connectedUsers"></div>
+        <!-- Div to display connected users -->
+        <div id="connectedUsersContainer" style="visibility: hidden;">
+            <div id="connectedUsersList"></div>
         </div>
         
+        <!-- Div to define user pseudo -->
         <div id="modal">
             <p>Choix du pseudo :</p>
             <input type="text" id="choosePseudo" autofocus placeholder="Choisissez votre pseudo puis appuyer sur entrée">
             <button id="submitPseudo" style="visibility: hidden;"></button>
         </div>
-
+        
+        <!-- Div to say welcome to the user -->
         <div>
             <p id="helloUser"></p>
         </div>
         
+        <!-- Div to display users messages -->
         <div id="messageDiv"></div>
+
+        <!-- Div to write and send any messages -->
         <div id="container-input" style="visibility: hidden;">
             <textarea id="messageTextarea" placeholder="Saisissez votre message..."></textarea>
             <button id="submitButton">Envoyer</button>
@@ -125,23 +164,27 @@
         <script src="socket.io/socket.io.js"></script>
         <script>
             var socket = io();
+            
             const modal = document.getElementById('modal');
+            const connectedUsersContainer = document.getElementById('connectedUsersContainer');
             const messageDiv = document.getElementById('messageDiv');
             const containerInput = document.getElementById('container-input');
             const messageTextarea = document.getElementById('messageTextarea');
             const submitButton = document.getElementById('submitButton');
             const helloUser = document.getElementById('helloUser');
-            socket.emit('user', choosePseudo.value);
+            
             
             // addEventListener pseudo
             choosePseudo.addEventListener('keyup', (e) => {
                 e.preventDefault();
                 if(e.keyCode === 13) {
                     submitPseudo.click();
+                    socket.emit('user', choosePseudo.value);
                     modal.style.display = 'none'; // Hide modal
+                    connectedUsersContainer.style.visibility = 'initial';
                     helloUser.textContent = 'Bienvenue ' + choosePseudo.value + ' !';
                     helloUser.style.opacity = '1'; // Welcome message
-                    containerInput.style.visibility = 'initial'; // Display input for send messages
+                    containerInput.style.visibility = 'initial'; // Display input to send messages
                 }
                 else { null; }
             });
@@ -149,11 +192,11 @@
             // addEventListener chat
             submitButton.addEventListener('click', () => {
                 if(messageTextarea.value) {
-                    messageDiv.innerHTML += '<div class="messageClient"><p>' + choosePseudo.value + ' : </p><span>' + messageTextarea.value + '</span></div>';
-                    socket.emit('message', {'id' : socket.id, 'msg' : messageTextarea.value, 'username' : choosePseudo.value}); // Message client
+                    messageDiv.innerHTML += '<div class="messageClient"><p>' + choosePseudo.value + ' : </p><span>' + messageTextarea.value + '</span></div>';  // Message client
+                    socket.emit('message', {'id' : socket.id, 'msg' : messageTextarea.value, 'user' : choosePseudo.value});
+                        messageTextarea.value = '';
                 }
                 else { null; }
-                messageTextarea.value = '';
             });
             messageTextarea.addEventListener('keyup', (e) => {
                 e.preventDefault();
@@ -163,18 +206,18 @@
 
             socket.on('message', (data) => {
                 console.log('message receveid :', data);
-                messageDiv.innerHTML += '<div class="messageServer"><p>' + data.username + ' : </p><span>' + data.msg + '</span></div>'; // Message server
+                messageDiv.innerHTML += '<div class="messageServer"><p>' + data.user + ' : </p><span>' + data.msg + '</span></div>'; // Message server
             });
             socket.emit('loaded', 'page loaded !');
             
             // List of connected users
-            socket.on('generateList', (data) => {
-                var newDiv = document.getElementById('connectedUsers');
-                newDiv.remove();
-                connectedUsersContainer.innerHTML +="<div id='connectedUsers'></div>";
-                newDiv = document.getElementById('connectedUsers');
+            socket.on('createList', (data) => {
+                var connectedUsersDivList = document.getElementById('connectedUsersList');
+                connectedUsersDivList.remove();
+                connectedUsersContainer.innerHTML += '<div id="connectedUsersList">Utilisateurs connectés : </div>';
+                connectedUsersDivList = document.getElementById('connectedUsersList');
                 data.forEach(element => {
-                    connectedUsers.innerHTML += '<span>' + element.pseudo + '</span>';
+                    connectedUsersDivList.innerHTML += '<span>' + element.pseudo + '</span>  / ';
                 });
             });
         </script>

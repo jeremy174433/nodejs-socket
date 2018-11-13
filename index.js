@@ -5,12 +5,13 @@ const io = require('socket.io')(http);
 io.on('connection', socket => {
     var connectedUsers = Object.keys(io.sockets.clients().connected); // Connected users
     console.log('user connected : ', socket.id);
+
     socket.on('loaded', (data) => {
         console.log('data from client : ', data);
     });
     socket.on('user', (data) => {
         socket.pseudo = data;
-        generateListUser();
+        createListUsers();
     });
     socket.on('message', (data) => {
         socket.broadcast.emit('message', data); // Affiche les messages côté serveur
@@ -18,17 +19,20 @@ io.on('connection', socket => {
 
     // Connected users
     io.emit('listConnectedUsers', connectedUsers);
-    function generateListUser(){
+    function createListUsers() {
         var userList = [];
-        console.log(userList);
-        var clientList = io.sockets.clients().connected
+        var clientList = io.sockets.clients().connected;
         Object.entries(clientList).forEach(element => {
             let pseudo = element[1].pseudo;
             let id = element[1].id;
-            userList.push({'id': id, 'pseudo': pseudo})
+            userList.push({'id': id, 'pseudo': pseudo});
         });
-        io.emit('generateList', userList)
+        io.emit('createList', userList)
     }
+    // Refresh connected users
+    socket.on('disconnect', () => {
+        createListUsers();
+    });
 });
 
 app.get('/', (req, res) => {
